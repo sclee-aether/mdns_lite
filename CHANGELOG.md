@@ -7,6 +7,17 @@
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+* Fixes
+  * Support Windows with `MdnsLite.InetMonitor`. Responders previously crashed
+    or stopped right away: there's no `SO_BINDTODEVICE` or `SO_REUSEPORT`,
+    receives complete asynchronously (`:completion` instead of `:select`),
+    and packet info comes with a numeric level, so every packet was dropped.
+    `IP_MULTICAST_LOOP` is left on since on Windows it controls whether queries
+    from the same computer are received. Disconnected adapters are skipped
+    until they're connected. IPv6 responders aren't supported on Windows yet.
+
 ## v0.9.3 - 2026-10-16
 
 * Fixes

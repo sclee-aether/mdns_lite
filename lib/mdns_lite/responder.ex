@@ -158,10 +158,10 @@ defmodule MdnsLite.Responder do
     with {:ok, udp} <- :socket.open(family, :dgram, :udp),
          {:ok, ifindex} <- :net.if_name2index(String.to_charlist(state.ifname)),
          :ok <- bindtodevice(udp, state.ifname),
-         :ok <- :socket.setopt(udp, :socket, :reuseport, true),
+         :ok <- reuseport(udp),
          :ok <- :socket.setopt(udp, :socket, :reuseaddr, true),
          :ok <- PacketOrigin.enable(udp, family),
-         :ok <- :socket.setopt(udp, option_level, :multicast_loop, false),
+         :ok <- :socket.setopt(udp, option_level, :multicast_loop, multicast_loop?()),
          :ok <- set_multicast_ttl(udp, state),
          {:ok, interface} <- get_interface_opt(state),
          :ok <- :socket.setopt(udp, option_level, :multicast_if, interface),
@@ -224,6 +224,15 @@ defmodule MdnsLite.Responder do
     {:noreply, process_receives(state)}
   end
 
+  # Windows completes receives asynchronously (I/O completion ports) and sends
+  # the result in the message rather than asking for another recvmsg call
+  def handle_info(
+        {:"$socket", udp, :completion, {select_handle, result}},
+        %{udp: udp, select_handle: select_handle} = state
+      ) do
+    {:noreply, state |> process_recv_result(result) |> process_receives()}
+  end
+
   def handle_info({:announce_services, 3}, state) do
     Logger.info("Services have been announced")
     {:noreply, state}
@@ -264,10 +273,18 @@ defmodule MdnsLite.Responder do
       {:select, {:select_info, _tag, select_handle}} ->
         %{state | select_handle: select_handle}
 
+      {:completion, {:completion_info, _tag, completion_handle}} ->
+        %{state | select_handle: completion_handle}
+
       {:error, reason} ->
         raise "mdns_lite #{state.ifname} receive failed: #{inspect(reason)}"
     end
   end
+
+  defp process_recv_result(state, {:ok, message}), do: process_packet(state, message)
+
+  defp process_recv_result(state, {:error, reason}),
+    do: raise("mdns_lite #{state.ifname} receive failed: #{inspect(reason)}")
 
   defp process_packet(state, message) do
     addresses = interface_addresses(state)
@@ -395,7 +412,30 @@ defmodule MdnsLite.Responder do
       {:unix, _} ->
         # TODO!
         :ok
+
+      {:win32, _} ->
+        # Windows has no SO_BINDTODEVICE. Packets from other interfaces are
+        # filtered by interface index in MdnsLite.PacketOrigin instead.
+        :ok
     end
+  end
+
+  # Windows doesn't have SO_REUSEPORT. Its SO_REUSEADDR already lets several
+  # sockets share the mDNS port, including the one Windows itself listens on.
+  defp reuseport(socket) do
+    if :socket.is_supported(:options, :socket, :reuseport) do
+      :socket.setopt(socket, :socket, :reuseport, true)
+    else
+      :ok
+    end
+  end
+
+  # On Windows, IP_MULTICAST_LOOP applies to the receiving socket: turning it
+  # off would hide queries made by other programs on the same computer (like
+  # the Windows resolver looking up `<host>.local`). Elsewhere it applies to
+  # the sending socket and keeps responses from echoing back.
+  defp multicast_loop?() do
+    match?({:win32, _}, :os.type())
   end
 
   # No difference between Linux and macOS for IPv6
@@ -431,6 +471,11 @@ defmodule MdnsLite.Responder do
       {:unix, _} ->
         # TODO!
         :ok
+
+      {:win32, _} ->
+        # TODO! IPv6 hasn't been tried on Windows. Fail so that the responder
+        # stops with a log message instead of crashing.
+        {:error, :enotsup}
     end
   end
 

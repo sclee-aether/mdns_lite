@@ -66,6 +66,15 @@ defmodule MdnsLite.PacketOrigin do
   defp packet_info(%{level: :ipv6, type: :pktinfo, value: %{addr: addr, ifindex: index}}, :inet6),
     do: {addr, index}
 
+  # On Windows, OTP decodes the packet info of asynchronous (completion)
+  # receives but reports the level as its number: IPPROTO_IP (0) and
+  # IPPROTO_IPV6 (41)
+  defp packet_info(%{level: 0, type: :pktinfo, value: %{addr: addr, ifindex: index}}, :inet),
+    do: {addr, index}
+
+  defp packet_info(%{level: 41, type: :pktinfo, value: %{addr: addr, ifindex: index}}, :inet6),
+    do: {addr, index}
+
   defp packet_info(
          %{
            level: :ipv6,

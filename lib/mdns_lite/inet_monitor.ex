@@ -62,8 +62,21 @@ defmodule MdnsLite.InetMonitor do
   end
 
   defp ifaddr_to_ip_list({ifname, info}) do
-    addrs = for addr <- Keyword.get_values(info, :addr), do: addr
+    addrs =
+      if connected?(info), do: Keyword.get_values(info, :addr), else: []
+
     {to_string(ifname), addrs}
+  end
+
+  # Windows keeps the addresses of disconnected adapters (a static IP or a
+  # 169.254.x.x one), and joining the mDNS group on them fails. Treating them as
+  # address-less until they're connected (:running) also starts the responder
+  # when the cable is plugged in, since the address list changes then.
+  defp connected?(info) do
+    case :os.type() do
+      {:win32, _} -> :running in Keyword.get(info, :flags, [])
+      _ -> true
+    end
   end
 
   defp only_ifnames(ifname_addresses) do

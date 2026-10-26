@@ -70,7 +70,9 @@ defmodule MdnsLite.ResponderTest do
                             nil
                         end)
 
-  if @non_loopback_address do
+  # Windows refuses to send from a socket bound to a non-loopback address to
+  # 127.0.0.1 (WSAEINVALIDNETNAME), so these packets can't arrive there anyway
+  if @non_loopback_address && not match?({:win32, _}, :os.type()) do
     for response <- [true, false] do
       test "rejects real off-subnet #{if response, do: "response", else: "query"} records" do
         {state, _sender, destination} = receive_state(:inet)
@@ -95,7 +97,12 @@ defmodule MdnsLite.ResponderTest do
     if packet_info, do: :ok = PacketOrigin.enable(receiver, family)
     :ok = :socket.bind(receiver, %{family: family, addr: address, port: 0})
     {:ok, destination} = :socket.sockname(receiver)
-    {:select, {:select_info, _tag, handle}} = :socket.recvmsg(receiver, 65535, 1024, [], :nowait)
+    # Windows reports a completion instead of a select
+    handle =
+      case :socket.recvmsg(receiver, 65535, 1024, [], :nowait) do
+        {:select, {:select_info, _tag, handle}} -> handle
+        {:completion, {:completion_info, _tag, handle}} -> handle
+      end
 
     state = %{
       ifname: List.to_string(name),
@@ -113,8 +120,9 @@ defmodule MdnsLite.ResponderTest do
 
   defp deliver(state, sender, destination, message) do
     :ok = :socket.sendto(sender, DNS.encode(message), destination)
-    event = {:"$socket", state.udp, :select, state.select_handle}
-    assert_receive ^event, 1000
+    # Windows sends :completion instead of :select
+    udp = state.udp
+    assert_receive {:"$socket", ^udp, kind, _} = event when kind in [:select, :completion], 1000
     {:noreply, new_state} = Responder.handle_info(event, state)
     new_state
   end
