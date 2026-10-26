@@ -15,6 +15,13 @@ defmodule MdnsLite.Table.Builder do
   Create a table based on the user options
   """
   @spec from_options(Options.t()) :: MdnsLite.Table.t()
+  def from_options(%Options{dot_local_names: []}) do
+    # No hostname yet (`hosts: []`, e.g. until `MdnsLite.set_hosts/1` is
+    # called): nothing to answer, and the reverse lookup and service records
+    # would have no host to point to
+    []
+  end
+
   def from_options(%Options{} = config) do
     # TODO: This could be seriously simplified...
     # CHRIS TODO: Announce service after they are all added

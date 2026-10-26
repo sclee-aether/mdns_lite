@@ -99,6 +99,12 @@ defmodule MdnsLite.TableTest do
     assert do_query(query) == result
   end
 
+  test "answers nothing without hosts" do
+    config = %Options{} |> Options.add_hosts([])
+    query = dns_query(domain: ~c"nerves.local", type: :a, class: :in)
+    assert do_query(query, config) == %{answer: [], additional: []}
+  end
+
   test "matches names case-insensitively" do
     config = %Options{} |> Options.add_hosts(["WWJD-1"])
     query = dns_query(domain: ~c"wwjd-1.LOCAL", type: :a, class: :in)

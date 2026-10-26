@@ -19,6 +19,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     until they're connected. IPv6 responders aren't supported on Windows yet.
   * Match names case-insensitively (RFC 6762 Section 16). Browsers lowercase
     hostnames, so `MyHost.local` didn't answer `myhost.local` queries.
+  * Allow `hosts: []`. The app crashed on start (`hd([])`) instead of
+    advertising nothing until `MdnsLite.set_hosts/1` is called.
 
 ## v0.9.3 - 2026-10-16
 
