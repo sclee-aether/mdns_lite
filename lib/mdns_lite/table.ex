@@ -102,9 +102,16 @@ defmodule MdnsLite.Table do
 
   defp run_query(dns_query(class: class, type: type, domain: domain), table) do
     Enum.filter(table, fn dns_rr(class: c, type: t, domain: d) ->
-      c == class and t == type and d == domain
+      c == class and t == type and same_domain?(d, domain)
     end)
   end
+
+  # RFC 6762 Section 16: names compare case-insensitively (ASCII only).
+  # Browsers, for example, lowercase hostnames before looking them up.
+  defp same_domain?(a, b) when is_list(a) and is_list(b), do: downcase(a) == downcase(b)
+  defp same_domain?(a, b), do: a == b
+
+  defp downcase(name), do: for(c <- name, do: if(c in ?A..?Z, do: c + 32, else: c))
 
   defp normalize_query(dns_query(class: :in, type: :ptr, domain: domain) = q, if_info) do
     case test_known_in_addr_arpa(domain, if_info) do

@@ -99,6 +99,17 @@ defmodule MdnsLite.TableTest do
     assert do_query(query) == result
   end
 
+  test "matches names case-insensitively" do
+    config = %Options{} |> Options.add_hosts(["WWJD-1"])
+    query = dns_query(domain: ~c"wwjd-1.LOCAL", type: :a, class: :in)
+
+    assert %{answer: [dns_rr(domain: ~c"WWJD-1.local", data: {192, 168, 9, 57})]} =
+             do_query(query, config)
+
+    other = dns_query(domain: ~c"wwjd-2.local", type: :a, class: :in)
+    assert do_query(other, config) == %{answer: [], additional: []}
+  end
+
   test "ignores A request for someone else" do
     query =
       dns_query(domain: ~c"someone-else.local", type: :a, class: :in, unicast_response: true)

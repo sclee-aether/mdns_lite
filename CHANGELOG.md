@@ -17,6 +17,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `IP_MULTICAST_LOOP` is left on since on Windows it controls whether queries
     from the same computer are received. Disconnected adapters are skipped
     until they're connected. IPv6 responders aren't supported on Windows yet.
+  * Match names case-insensitively (RFC 6762 Section 16). Browsers lowercase
+    hostnames, so `MyHost.local` didn't answer `myhost.local` queries.
 
 ## v0.9.3 - 2026-10-16
 
